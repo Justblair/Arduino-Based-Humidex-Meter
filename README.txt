@@ -1,6 +1,8 @@
 Arduino Based Humidex Meter
 by Blair Thompson (aka Justblair)
 
+I have for a long time struggled  to understand why when my classroom or office temperatures read apparent clement temperatures it can still feel unbearably hot.  The reason it turns out is that temperature and humidity combined effect how comfortable an environment is for humans.  This project is a meter that displays and logs the Humidex index for a room.
+
 This project has still some to go, so wiring diagrams etc are yet to be finalised.  
 
 Eventually the prtoject wil be documented at www.justblair.co.uk, untill then look at the notes in the arduino sketch for pin assignations
