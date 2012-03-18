@@ -39,7 +39,7 @@ const byte LCD_BACKLIGHT = 9;		// To conserve energy the lcd will light up om re
 const byte BRIGHTNESS = 50;			// We dont need full brightness for the LCD
 const byte BUTTON = 14;				// Swtch on
 const byte CHIP_SELECT = 10;		// CS pin for the SD card
-const int Sample_Interval_Sec = 2;	// How many seconds between Sensor Reads
+const unsigned long Sample_Interval_Sec = 60;	// How many seconds between Sensor Reads
 
 const int DS1307_I2C_ADDRESS = 0x68;
 
@@ -53,8 +53,8 @@ float t = 0;						// The temperature will be held in this var
 float h = 0;						// The humidity will be held in this var
 float Humidex = 0;					// For Humidex
 
-byte second, minute, hour, day_of_week, day_of_month, month, year, sqwe, bst_flag;  // For the DS1307
-byte serial_debug     = 0; // if "1" it switches on the debug messages to the serial port
+int second, minute, hour, day_of_week, day_of_month, month, year, sqwe, bst_flag;  // For the DS1307
+byte serial_debug     = 1; // if "1" it switches on the debug messages to the serial port
 byte serial_show_time = 1; // If "1" it switches on time updates to the serial port
 
 // Uncomment whatever type of sensor that you're using!
@@ -79,10 +79,10 @@ void setup() {
 	Serial.begin(9600);				// For Serial Communication to PC
 	dht.begin();					// For the Temperature/Humidity Sensor
 
-	// setDateDs1307 (s , min, hrs, day, month, year, switch)
+	// setDateDs1307 (s , min, hrs, day of week, day, month, year, switch)
 	// Uncomment the following line and change variables to set the time...
 	// You dont need to do this more than once
-	// setDateDs1307(0, 50, 22, 5, 15, 3, 0, 1);
+	// setDateDs1307(0, 53, 22, 1, 18, 03, 12, 1);
 
 	analogWrite (LCD_BACKLIGHT , BRIGHTNESS);	// Switch on the LCD Backlight
 	Serial.println("Humidex Logger Live!");		// Welcome messages for LCD and Serial
@@ -104,23 +104,31 @@ void setup() {
 		lcd.setCursor (0,0);
 		lcd.print ("Card initialised");
 	}
+	last_reading = millis();
+	h = dht.readHumidity();
+	t = dht.readTemperature();
+	Humidex = t + (5 * ((6.112 * pow( 10, 7.5 * t/(237.7 + t))*h/100) - 10))/9;
+	get_date_DS1307(&second, &minute, &hour, &day_of_week, &day_of_month, &month, &year, &sqwe, &bst_flag);
+	// Write to the SD card
+	write_to_SD(t, h, Humidex);
 }
 
 // Main Loop (loops and loops and loops)
 
 void loop() {
 
-	get_date_DS1307(&second, &minute, &hour, &day_of_week, &day_of_month, &month, &year, &sqwe, &bst_flag);
-	
 	// Reading temperature or humidity takes about 250 milliseconds!
 	// Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
 	// So we read it on longish intervals.  Using an if statement here allows for other
 	// code to run while we wait.
-	if (millis() > last_reading + Sample_Interval_Sec*1000){	// Wait between readings
+	if (millis() > last_reading + (Sample_Interval_Sec*1000)){	// Wait between readings
 		last_reading = millis();
 		h = dht.readHumidity();
 		t = dht.readTemperature();
 		Humidex = t + (5 * ((6.112 * pow( 10, 7.5 * t/(237.7 + t))*h/100) - 10))/9;
+		get_date_DS1307(&second, &minute, &hour, &day_of_week, &day_of_month, &month, &year, &sqwe, &bst_flag);
+		// Write to the SD card
+		write_to_SD(t, h, Humidex);
 	}
 
 	// We keep the LCD backlight off for a lot of the time to preserve power, this 
@@ -141,10 +149,11 @@ void loop() {
 		lcd.print("Check Hardware");
 	} 
 	else if (t != old_t || h != old_h) {	// Only act if there has been a change in readings.
-		if (abs(t - old_t) + abs(h - old_h) > 2){	// Looking for a substantial change, switch the led backlight on if it happens
+		if (abs(t - old_t) + abs(h - old_h) > 1){	// Looking for a substantial change, switch the led backlight on if it happens
 			analogWrite(LCD_BACKLIGHT, BRIGHTNESS);
 			lcd_time = millis();
 		}
+
 		old_t = t;							// Reset the monitor
 		old_h = h;
 
@@ -192,8 +201,7 @@ void loop() {
 		lcd.print(Humidex);
 		lcd.print("C ");
 
-		// Write to the SD card
-		write_to_SD(t, h, Humidex);
+
 
 	}
 }
@@ -202,7 +210,11 @@ void loop() {
 
 void write_to_SD(int _t ,int _h, int _humidex){
 	String dataString = "";
-	dataString += String(millis()/1000);
+	dataString += String(hour);
+	dataString += ":";
+	dataString += String(minute);
+	dataString += ":";
+	dataString += String(second);
 	dataString += ",";
 	dataString += String(_t);
 	dataString += ","; 
@@ -213,23 +225,34 @@ void write_to_SD(int _t ,int _h, int _humidex){
 	// open the file. note that only one file can be open at a time,
 	// so you have to close this one before opening another.
 
-	File dataFile = SD.open("datalog.txt", FILE_WRITE);
+	char filename[] = "HU000000.CSV";
+	filename [2] = day_of_month/10+48;
+	filename [3] = day_of_month%10+48;
+	filename [4] = month/10+48;
+	filename [5] = month%10+48;
+	filename [6] = year/10+48;
+	filename [7] = year%10+48;
+
+	if (serial_debug == 1){
+		Serial.println(filename);
+	}
+
+	File dataFile = SD.open(filename, FILE_WRITE);
 
 	// if the file is available, write to it:
 	if (dataFile) {
 		dataFile.println(dataString);
 		dataFile.close();
-		// print to the serial port too:
-		Serial.println(dataString);
+		if (serial_debug == 1){
+			Serial.println(dataString);
+		}
 	}  
 }
 
-// *****************************************************************
-// *             These functions talk to the DS1307                *
-// *  Based on code from  tronixstuff.com/tutorials in turn based  *
-// *          based on code by Maurice Ribble 17-4-2008 -          *
-// *         http://www.glacialwanderer.com/hobbyrobotics          *
-// *****************************************************************
+// These functions talk to the DS1307 
+// Based on code from  tronixstuff.com/tutorials in turn based
+// based on code by Maurice Ribble 17-4-2008 -
+// http://www.glacialwanderer.com/hobbyrobotics
 
 // Convert normal decimal numbers to binary coded decimal
 // The DS1307 stores most of the units it uses in this format
@@ -244,15 +267,15 @@ byte bcd_to_dec(byte val){
 
 // Gets the date and time from the ds1307
 void get_date_DS1307(
-	byte *second,
-	byte *minute,
-	byte *hour,
-	byte *day_of_week,
-	byte *day_of_month,
-	byte *month,
-	byte *year,
-	byte *sqwe,
-	byte *bst_flag)
+	int *second,
+	int *minute,
+	int *hour,
+	int *day_of_week,
+	int *day_of_month,
+	int *month,
+	int *year,
+	int *sqwe,
+	int *bst_flag)
 {
 	// Reset the register pointer, this tells the DS1307 where we want to 
 	// start reading from (ie, where the time is stored on the chip)
