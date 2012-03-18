@@ -27,7 +27,7 @@
 
 #define DHTPIN 2					// what pin we're connected to
 #define LCD_BACKLIGHT 9				// To conserve energy the lcd will light up om request
-#define BRIGHTNESS 50				// We donw need full brightness for the LCD
+#define BRIGHTNESS 50				// We dont need full brightness for the LCD
 #define BUTTON 14					// Swtch on
 #define CHIP_SELECT 10				// CS pin for the SD card
 
@@ -90,9 +90,6 @@ void setup() {
 		lcd.setCursor (0,0);
 		lcd.print ("Card initialised");
 	}
-	set_time();
-	compile_time = __TIME__;
-	compile_date = __DATE__;
 }
 
 // Main Loop (loops and loops and loops)
@@ -290,9 +287,4 @@ byte bst_flag)        // 0-1
   if (serial_debug == 1){          // Send a message to make sure!
     Serial.println ("Time Sent");
   }
-}
-void set_time(){
-	String compile_time = __TIME__;
-	String compile_date = __DATE__;
-	int hour = compile_time[0]
 }
